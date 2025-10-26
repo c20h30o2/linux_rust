@@ -1,0 +1,207 @@
+vector
+let v: Vec<i32> = Vec::new();
+let v = vec![1, 2, 3]; // 由于提供了i32类型的初始值，所以rust可以推断出v的类型是Vec<i32>
+
+增加元素：v.push(1);
+删除元素：pop
+取用元素：
+let v = vec![1, 2, 3, 4, 5];
+let third: &i32 = &v[2];// 不可变引用
+let third: i32 = v[2];// 直接拷贝
+match v.get(2) {
+    Some(third) => println!("The third element is {}", third),
+    None => println!("There is no third element."),
+}
+使用 & 和 [] 返回一个引用；或者使用 get 方法以索引作为参数来返回一个 Option<&T>。
+
+示例 尝试访问一个包含 5 个元素的 vector 的索引 100 处的元素
+
+使用[] 方法，当引用一个不存在的元素时 Rust 会造成 panic。这个方法更适合当程序认为尝试访问超过 vector 结尾的元素是一个严重错误的情况，这时应该使程序崩溃。
+当 get 方法被传递了一个数组外的索引时，它不会 panic 而是返回 None。当偶尔出现超过 vector 范围的访问属于正常情况的时候可以考虑使用它。接着你的代码可以有处理 Some(&element) 或 None 的逻辑，如第 6 章讨论的那样。例如，索引可能来源于用户输入的数字。如果它们不慎输入了一个过大的数字那么程序就会得到 None 值，你可以告诉用户当前 vector 元素的数量并再请求它们输入一个有效的值。这就比因为输入错误而使程序崩溃要友好的多！
+
+当我们获取了 vector 的第一个元素的不可变引用并尝试在 vector 末尾增加一个元素的时候，这是行不通的,不能这么做的原因是由于 vector 的工作方式：在 vector 的结尾增加新元素时，在没有足够空间将所有所有元素依次相邻存放的情况下，可能会要求分配新内存并将老的元素拷贝到新的空间中。这时，第一个元素的引用就指向了被释放的内存。借用规则阻止程序陷入这种状况。
+
+遍历vector元素:
+fn main() {
+let mut v = vec![100, 32, 57];
+for i in &mut v {
+    *i += 50;
+}
+}
+
+
+
+fn main() {
+enum SpreadsheetCell {
+    Int(i32),
+    Float(f64),
+    Text(String),
+}
+let row = vec![
+    SpreadsheetCell::Int(3),
+    SpreadsheetCell::Text(String::from("blue")),
+    SpreadsheetCell::Float(10.12),
+];
+}
+定义一个枚举，以便能在 vector 中存放不同类型的数据
+如果在编写程序时不能确切无遗地知道运行时会储存进 vector 的所有类型，枚举技术就行不通了。相反，你可以使用 trait 对象
+
+
+
+字符串：
+谈到 Rust 的 “字符串”时，它们通常指的是 String 和字符串 slice &str 类型，而不仅仅是其中之一
+Rust 标准库中还包含一系列其他字符串类型，比如 OsString、OsStr、CString 和 CStr。相关库 crate 甚至会提供更多储存字符串数据的选择
+let mut s = String::new();
+
+let data = "initial contents";
+let s = data.to_string();
+// 该方法也可直接用于字符串字面量：
+let s = "initial contents".to_string();
+let s = String::from("initial contents");
+
+请记住，字符串是 UTF-8 编码的，所以可以包含任何正确编码的数据
+
+更新字符串：
+let mut s = String::from("foo");
+s.push_str("bar");
+执行这两行代码之后，s 将会包含 foobar。push_str 方法采用字符串 slice，因为我们并不需要获取参数的所有权,所以下面的代码中s2仍然可以正常使用，不存在所有权的变化
+let mut s1 = String::from("foo");
+let s2 = "bar";
+s1.push_str(s2);
+
+push方法
+let mut s = String::from("lo");
+s.push('l');
+
+let s1 = String::from("Hello, ");
+let s2 = String::from("world!");
+let s3 = s1 + &s2; // 注意 s1 被移动了，不能继续使用
+原因：+运算符使用了add函数，其函数签名如：fn add(self, s: &str) -> String {   
+
+正如 add 的第二个参数所指定的，&s2 的类型是 &String 而不是 &str。那么为什么示例 8-18 还能编译呢？
+之所以能够在 add 调用中使用 &s2 是因为 &String 可以被 强转（coerced）成 &str。当 add 函数被调用时，Rust 使用了一个被称为 解引用强制转换（deref coercion）的技术，你可以将其理解为它把 &s2 变成了 &s2[..]。第 15 章会更深入的讨论解引用强制转换。因为 add 没有获取参数的所有权，所以 s2 在这个操作后仍然是有效的 String。
+可以发现签名中 add 获取了 self 的所有权，因为 self 没有 使用 &。这意味着示例 8-18 中的 s1 的所有权将被移动到 add 调用中，之后就不再有效。虽然 let s3 = s1 + &s2; 看起来就像它会复制两个字符串并创建一个新的字符串，而实际上这个语句会获取 s1 的所有权，附加上从 s2 中拷贝的内容，并返回结果的所有权。换句话说，它看起来好像生成了很多拷贝，不过实际上并没有：这个实现比拷贝要更高效。
+
+对于更为复杂的字符串连接，可以使用 format! 宏：
+let s1 = String::from("tic");
+let s2 = String::from("tac");
+let s3 = String::from("toe");
+let s = format!("{}-{}-{}", s1, s2, s3);
+这些代码也会将 s 设置为 “tic-tac-toe”。format! 与 println! 的工作原理相同，不过不同于将输出打印到屏幕上，它返回一个带有结果内容的 String。这个版本就好理解的多，并且不会获取任何参数的所有权。
+
+
+let s1 = String::from("hello");
+let h = s1[0]; 尝试对字符串使用索引语法会出错
+
+let len = String::from("Здравствуйте").len();
+当问及这个字符是多长的时候有人可能会说是 12。然而，Rust 的回答是 24。这是使用 UTF-8 编码 “Здравствуйте” 所需要的字节数，这是因为每个 Unicode 标量值需要 2 个字节存储。因此一个字符串字节值的索引并不总是对应一个有效的 Unicode 标量值。作为演示，考虑如下无效的 Rust 代码：
+
+This code does not compile!
+let hello = "Здравствуйте";
+let answer = &hello[0];
+answer 的值应该是什么呢？它应该是第一个字符 З 吗？当使用 UTF-8 编码时，З 的第一个字节 208，第二个是 151，所以 answer 实际上应该是 208，不过 208 自身并不是一个有效的字母。返回 208 可不是一个请求字符串第一个字母的人所希望看到的，不过它是 Rust 在字节索引 0 位置所能提供的唯一数据。用户通常不会想要一个字节值被返回，即便这个字符串只有拉丁字母： 即便 &"hello"[0] 是返回字节值的有效代码，它也应当返回 104 而不是 h。为了避免返回意外的值并造成不能立刻发现的 bug，Rust 根本不会编译这些代码，并在开发过程中及早杜绝了误会的发生。
+
+
+最后一个 Rust 不允许使用索引获取 String 字符的原因是，索引操作预期总是需要常数时间 (O(1))。但是对于 String 不可能保证这样的性能，因为 Rust 必须从开头到索引位置遍历来确定有多少有效的字符
+
+字符串slice
+let hello = "Здравствуйте";
+let s = &hello[0..4];// s 将会是 “Зд”
+&hello[0..1] 会发生什么呢？答案是：Rust 在运行时会 panic，就跟访问 vector 中的无效索引时一样
+
+如果你需要操作单独的 Unicode 标量值，最好的选择是使用 chars 方法。对 “नमस्ते” 调用 chars 方法会将其分开并返回六个 char 类型的值，接着就可以遍历其结果来访问每一个元素了：
+for c in "नमस्ते".chars() {
+    println!("{}", c);
+}
+
+bytes 方法返回每一个原始字节，这可能会适合你的使用场景：
+for b in "नमस्ते".bytes() {
+    println!("{}", b);
+}
+从字符串中获取字形簇是很复杂的，所以标准库并没有提供这个功能。crates.io 上有些提供这样功能的 crate。
+
+
+
+
+hashmap
+
+#![allow(unused)]
+fn main() {
+use std::collections::HashMap;// 需要手动引用
+let mut scores = HashMap::new();
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+}
+像 vector 一样，哈希 map 将它们的数据储存在堆上，这个 HashMap 的键类型是 String 而值类型是 i32。类似于 vector，哈希 map 是同质的：所有的键必须是相同类型，值也必须都是相同类型。
+
+
+#![allow(unused)]
+fn main() {
+use std::collections::HashMap;
+let teams  = vec![String::from("Blue"), String::from("Yellow")];
+let initial_scores = vec![10, 50];
+
+let scores: HashMap<_, _> = teams.iter().zip(initial_scores.iter()).collect();
+}
+最后一行代码的作用是：将两个向量（teams 和 initial_scores）按顺序配对，收集成一个 HashMap。
+分步解析：
+teams.iter() 和 initial_scores.iter()：分别获取两个向量的迭代器（引用元素，不转移所有权）。
+.zip(...)：将两个迭代器 “拉链式” 配对，形成 (团队名引用, 分数引用) 的新迭代器（如 ("Blue", 10)、("Yellow", 50)）。
+.collect()：将配对后的迭代器元素收集为 HashMap，HashMap<_, _> 中 _ 由编译器自动推断为 &String（键）和 &i32（值）。
+最终得到一个以团队名为键、对应分数为值的哈希表 scores
+
+
+hashmap和所有权
+#![allow(unused)]
+fn main() {
+use std::collections::HashMap;
+let field_name = String::from("Favorite color");
+let field_value = String::from("Blue");
+let mut map = HashMap::new();
+map.insert(field_name, field_value);
+// 这里 field_name 和 field_value 不再有效，
+// 尝试使用它们看看会出现什么编译错误！
+}
+如果将值的引用插入哈希 map，这些值本身将不会被移动进哈希 map。但是这些引用指向的值必须至少在哈希 map 有效时也是有效的。这意味着当使用引用向hashmap中存入时，哈希表中存储的是引用本身（类似指针），而不是值的副本或所有权
+
+
+访问hashmap中的值
+let mut scores = HashMap::new();
+scores.insert(String::from("Blue"), 10);
+scores.insert(String::from("Yellow"), 50);
+let team_name = String::from("Blue");
+// 方法一使用get
+let score = scores.get(&team_name);
+这里，score 是与蓝队分数相关的值，应为 Some(10)。因为 get 返回 Option<V>，所以结果被装进 Some；如果某个键在哈希 map 中没有对应的值，get 会返回 None。这时就要用某种第 6 章提到的方法之一来处理 Option。
+// 方法二使用for
+for (key, value) in &scores {
+    println!("{}: {}", key, value);
+}
+
+更新hashmap
+覆盖一个值
+如果我们插入了一个键值对，接着用相同的键插入一个不同的值，与这个键相关联的旧值将被替换
+
+只在键没有对应值时插入
+我们经常会检查某个特定的键是否有值，如果没有就插入一个值。为此哈希 map 有一个特有的 API，叫做 entry，它获取我们想要检查的键作为参数。entry 函数的返回值是一个枚举，Entry，它代表了可能存在也可能不存在的值。比如说我们想要检查黄队的键是否关联了一个值。如果没有，就插入值 50，对于蓝队也是如此。
+use std::collections::HashMap;
+let mut scores = HashMap::new();
+scores.insert(String::from("Blue"), 10);
+scores.entry(String::from("Yellow")).or_insert(50);
+scores.entry(String::from("Blue")).or_insert(50);
+println!("{:?}", scores);
+Entry 的 or_insert 方法在键对应的值存在时就返回这个值的可变引用，如果不存在则将参数作为新值插入并返回新值的可变引用。这比编写自己的逻辑要简明的多，另外也与借用检查器结合得更好。
+
+
+
+根据旧值更新一个值
+另一个常见的哈希 map 的应用场景是找到一个键对应的值并根据旧的值更新它。例如，示例 8-26 中的代码计数一些文本中每一个单词分别出现了多少次。我们使用哈希 map 以单词作为键并递增其值来记录我们遇到过几次这个单词。如果是第一次看到某个单词，就插入值 0
+use std::collections::HashMap;
+let text = "hello world wonderful world";
+let mut map = HashMap::new();
+for word in text.split_whitespace() {
+    let count = map.entry(word).or_insert(0);
+    *count += 1;
+}
+println!("{:?}", map);
+这会打印出 {"world": 2, "hello": 1, "wonderful": 1}，or_insert 方法事实上会返回这个键的值的一个可变引用（&mut V）。这里我们将这个可变引用储存在 count 变量中，所以为了赋值必须首先使用星号（*）解引用 count。这个可变引用在 for 循环的结尾离开作用域，这样所有这些改变都是安全的并符合借用规则。
