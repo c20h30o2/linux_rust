@@ -1,0 +1,101 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   0.030878803s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint: stale: changed "/home/c20h30o2/rs_project/startrust/ioproject07/src/lib.rs"
+   0.030928173s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:           (vs) "/home/c20h30o2/rs_project/startrust/ioproject07/target/debug/.fingerprint/ioproject07-280d4f61afb1aab6/dep-lib-ioproject07"
+   0.030939752s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:                FileTime { seconds: 1761408775, nanos: 297461138 } < FileTime { seconds: 1761409652, nanos: 265966898 }
+   0.031633031s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint: fingerprint dirty for ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07)/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("ioproject07", ["lib"], "/home/c20h30o2/rs_project/startrust/ioproject07/src/lib.rs", Edition2024) }
+   0.031698902s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(ChangedFile { reference: "/home/c20h30o2/rs_project/startrust/ioproject07/target/debug/.fingerprint/ioproject07-280d4f61afb1aab6/dep-lib-ioproject07", reference_mtime: FileTime { seconds: 1761408775, nanos: 297461138 }, stale: "/home/c20h30o2/rs_project/startrust/ioproject07/src/lib.rs", stale_mtime: FileTime { seconds: 1761409652, nanos: 265966898 } }))
+   0.032305985s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint: fingerprint error for ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07)/Check { test: true }/TargetInner { name_inferred: true, ..: lib_target("ioproject07", ["lib"], "/home/c20h30o2/rs_project/startrust/ioproject07/src/lib.rs", Edition2024) }
+   0.032331778s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/c20h30o2/rs_project/startrust/ioproject07/target/debug/.fingerprint/ioproject07-b898d82b0bbc82e8/test-lib-ioproject07`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: cargo_util::paths::read_bytes
+   1: cargo_util::paths::read
+   2: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   3: cargo::core::compiler::fingerprint::prepare_target
+   4: cargo::core::compiler::compile
+   5: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   6: cargo::ops::cargo_compile::compile_ws
+   7: cargo::ops::cargo_compile::compile_with_exec
+   8: cargo::ops::cargo_compile::compile
+   9: cargo::commands::check::exec
+  10: <cargo::cli::Exec>::exec
+  11: cargo::main
+  12: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  13: std::rt::lang_start::<()>::{closure#0}
+  14: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/core/src/ops/function.rs:290:21
+  15: std::panicking::catch_unwind::do_call
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:589:40
+  16: std::panicking::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:552:19
+  17: std::panic::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panic.rs:359:14
+  18: std::rt::lang_start_internal::{{closure}}
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/rt.rs:175:24
+  19: std::panicking::catch_unwind::do_call
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:589:40
+  20: std::panicking::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:552:19
+  21: std::panic::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panic.rs:359:14
+  22: std::rt::lang_start_internal
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/rt.rs:171:5
+  23: main
+  24: __libc_start_call_main
+             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  25: __libc_start_main_impl
+             at ./csu/../csu/libc-start.c:360:3
+  26: <unknown>
+   0.150315127s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint: fingerprint dirty for ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07)/Check { test: false }/TargetInner { name: "ioproject07", doc: true, ..: with_path("/home/c20h30o2/rs_project/startrust/ioproject07/src/main.rs", Edition2024) }
+   0.150333508s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleDepFingerprint { name: "ioproject07" })
+   0.150552956s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint: fingerprint error for ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07)/Check { test: true }/TargetInner { name: "ioproject07", doc: true, ..: with_path("/home/c20h30o2/rs_project/startrust/ioproject07/src/main.rs", Edition2024) }
+   0.150562478s  INFO prepare_target{force=false package_id=ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07) target="ioproject07"}: cargo::core::compiler::fingerprint:     err: failed to read `/home/c20h30o2/rs_project/startrust/ioproject07/target/debug/.fingerprint/ioproject07-868b980d0d919f42/test-bin-ioproject07`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: cargo_util::paths::read_bytes
+   1: cargo_util::paths::read
+   2: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   3: cargo::core::compiler::fingerprint::prepare_target
+   4: cargo::core::compiler::compile
+   5: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   6: cargo::ops::cargo_compile::compile_ws
+   7: cargo::ops::cargo_compile::compile_with_exec
+   8: cargo::ops::cargo_compile::compile
+   9: cargo::commands::check::exec
+  10: <cargo::cli::Exec>::exec
+  11: cargo::main
+  12: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  13: std::rt::lang_start::<()>::{closure#0}
+  14: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/core/src/ops/function.rs:290:21
+  15: std::panicking::catch_unwind::do_call
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:589:40
+  16: std::panicking::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:552:19
+  17: std::panic::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panic.rs:359:14
+  18: std::rt::lang_start_internal::{{closure}}
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/rt.rs:175:24
+  19: std::panicking::catch_unwind::do_call
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:589:40
+  20: std::panicking::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panicking.rs:552:19
+  21: std::panic::catch_unwind
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/panic.rs:359:14
+  22: std::rt::lang_start_internal
+             at /rustc/1159e78c4747b02ef996e55082b704c09b970588/library/std/src/rt.rs:171:5
+  23: main
+  24: __libc_start_call_main
+             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  25: __libc_start_main_impl
+             at ./csu/../csu/libc-start.c:360:3
+  26: <unknown>
+    Checking ioproject07 v0.1.0 (/home/c20h30o2/rs_project/startrust/ioproject07)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.38s

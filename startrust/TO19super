@@ -1,0 +1,500 @@
+不安全的超能力
+可以通过 unsafe 关键字来切换到不安全 Rust，接着可以开启一个新的存放不安全代码的块。这里有五类可以在不安全 Rust 中进行而不能用于安全 Rust 的操作，它们称之为 “不安全的超能力。” 这些超能力是：
+
+解引用裸指针
+调用不安全的函数或方法
+访问或修改可变静态变量
+实现不安全 trait
+访问 union 的字段
+
+
+人是会犯错误的，错误总会发生，不过通过要求这五类操作必须位于标记为 unsafe 的块中，就能够知道任何与内存安全相关的错误必定位于 unsafe 块内。保持 unsafe 块尽可能小，如此当之后调查内存 bug 时就会感谢你自己了。
+
+
+
+解引用裸指针
+回到第 4 章的 “悬垂引用” 部分，那里提到了编译器会确保引用总是有效的。不安全 Rust 有两个被称为 裸指针（raw pointers）的类似于引用的新类型。和引用一样，裸指针是不可变或可变的，分别写作 *const T 和 *mut T。这里的星号不是解引用运算符；它是类型名称的一部分。在裸指针的上下文中，不可变 意味着指针解引用之后不能直接赋值。
+
+裸指针与引用和智能指针的区别在于：
+允许忽略借用规则，可以同时拥有不可变和可变的指针，或多个指向相同位置的可变指针
+不保证指向有效的内存
+允许为空
+不能实现任何自动清理功能
+
+let mut num = 5;
+
+let r1 = &num as *const i32;
+let r2 = &mut num as *mut i32;
+注意这里没有引入 unsafe 关键字。可以在安全代码中 创建 裸指针，只是不能在不安全块之外 解引用 裸指针，稍后便会看到。
+这里使用 as 将不可变和可变引用强转为对应的裸指针类型。因为直接从保证安全的引用来创建他们，可以知道这些特定的裸指针是有效，但是不能对任何裸指针做出如此假设。
+
+接下来会创建一个不能确定其有效性的裸指针，示例 19-2 展示了如何创建一个指向任意内存地址的裸指针。尝试使用任意内存是未定义行为：此地址可能有数据也可能没有，编译器可能会优化掉这个内存访问，或者程序可能会出现段错误（segmentation fault）。通常没有好的理由编写这样的代码，不过却是可行的：
+let address = 0x012345usize;
+let r = address as *const i32;
+
+
+
+let mut num = 5;
+let r1 = &num as *const i32;
+let r2 = &mut num as *mut i32;
+unsafe {
+    println!("r1 is: {}", *r1);
+    println!("r2 is: {}", *r2);
+}
+通过裸指针，就能够同时创建同一地址的可变指针和不可变指针，若通过可变指针修改数据，则可能潜在造成数据竞争。请多加小心！
+既然存在这么多的危险，为何还要使用裸指针呢？一个主要的应用场景便是调用 C 代码接口，这在下一部分 “调用不安全函数或方法” 中会讲到。另一个场景是构建借用检查器无法理解的安全抽象。让我们先介绍不安全函数，接着看一看使用不安全代码的安全抽象的例子。
+
+
+调用不安全函数或方法
+第二类要求使用不安全块的操作是调用不安全函数。不安全函数和方法与常规函数方法十分类似，除了其开头有一个额外的 unsafe。在此上下文中，关键字unsafe表示该函数具有调用时需要满足的要求，而 Rust 不会保证满足这些要求。通过在 unsafe 块中调用不安全函数，表明我们已经阅读过此函数的文档并对其是否满足函数自身的契约负责。
+unsafe fn dangerous() {}
+
+unsafe {
+    dangerous();
+}
+必须在一个单独的 unsafe 块中调用 dangerous 函数。如果尝试不使用 unsafe 块调用 dangerous，则会得到一个错误
+
+
+
+示例：要实现一个split_at_mut函数，使得下面代码可以运行：
+#![allow(unused)]
+fn main() {
+let mut v = vec![1, 2, 3, 4, 5, 6];
+
+let r = &mut v[..];
+
+let (a, b) = r.split_at_mut(3);
+
+assert_eq!(a, &mut [1, 2, 3]);
+assert_eq!(b, &mut [4, 5, 6]);
+}
+
+只采用安全rust实现：
+fn split_at_mut(slice: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
+    let len = slice.len();
+
+    assert!(mid <= len);
+
+    (&mut slice[..mid],
+     &mut slice[mid..])
+}
+这样会报错，因为rust不支持对slice同时产生两个可变引用
+Rust 的借用检查器不能理解我们要借用这个 slice 的两个不同部分：它只知道我们借用了同一个 slice 两次。本质上借用 slice 的不同部分是可以的，因为结果两个 slice 不会重叠，不过 Rust 还没有智能到能够理解这些。当我们知道某些事是可以的而 Rust 不知道的时候，就是触及不安全代码的时候了
+use std::slice;
+fn split_at_mut(slice: &mut [i32], mid: usize) -> (&mut [i32], &mut [i32]) {
+    let len = slice.len();
+    let ptr = slice.as_mut_ptr();
+
+    assert!(mid <= len);
+
+    unsafe {
+        (slice::from_raw_parts_mut(ptr, mid),
+         slice::from_raw_parts_mut(ptr.add(mid), len - mid))
+    }
+}
+
+回忆第 4 章的 “Slice 类型” 部分，slice 是一个指向一些数据的指针，并带有该 slice 的长度。可以使用 len 方法获取 slice 的长度，使用 as_mut_ptr 方法访问 slice 的裸指针。在这个例子中，因为有一个 i32 值的可变 slice，as_mut_ptr 返回一个 *mut i32 类型的裸指针，储存在 ptr 变量中。
+
+我们保持索引 mid 位于 slice 中的断言。接着是不安全代码：slice::from_raw_parts_mut 函数获取一个裸指针和一个长度来创建一个 slice。这里使用此函数从 ptr 中创建了一个有 mid 个项的 slice。之后在 ptr 上调用 add 方法并使用 mid 作为参数来获取一个从 mid 开始的裸指针，使用这个裸指针并以 mid 之后项的数量为长度创建一个 slice。
+
+slice::from_raw_parts_mut 函数是不安全的因为它获取一个裸指针，并必须确信这个指针是有效的。裸指针上的 add 方法也是不安全的，因为其必须确信此地址偏移量也是有效的指针。因此必须将 slice::from_raw_parts_mut 和 add 放入 unsafe 块中以便能调用它们。通过观察代码，和增加 mid 必然小于等于 len 的断言，我们可以说 unsafe 块中所有的裸指针将是有效的 slice 中数据的指针。这是一个可以接受的 unsafe 的恰当用法。
+
+注意无需将 split_at_mut 函数的结果标记为 unsafe，并可以在安全 Rust 中调用此函数。我们创建了一个不安全代码的安全抽象，其代码以一种安全的方式使用了 unsafe 代码，因为其只从这个函数访问的数据中创建了有效的指针。
+
+
+使用 extern 函数调用外部代码
+有时你的 Rust 代码可能需要与其他语言编写的代码交互。为此 Rust 有一个关键字，extern，有助于创建和使用 外部函数接口（Foreign Function Interface， FFI）。外部函数接口是一个编程语言用以定义函数的方式，其允许不同（外部）编程语言调用这些函数。
+extern "C" {
+    fn abs(input: i32) -> i32;
+}
+fn main() {
+    unsafe {
+        println!("Absolute value of -3 according to C: {}", abs(-3));
+    }
+}
+
+
+访问或修改可变静态变量
+目前为止全书都尽量避免讨论 全局变量（global variables），Rust 确实支持他们，不过这对于 Rust 的所有权规则来说是有问题的。如果有两个线程访问相同的可变全局变量，则可能会造成数据竞争。
+全局变量在 Rust 中被称为 静态（static）变量。示例 19-9 展示了一个拥有字符串 slice 值的静态变量的声明和应用：
+static HELLO_WORLD: &str = "Hello, world!";
+
+fn main() {
+    println!("name is: {}", HELLO_WORLD);
+}
+
+静态（static）变量类似于第 3 章 “变量和常量的区别” 部分讨论的常量。通常静态变量的名称采用 SCREAMING_SNAKE_CASE 写法。静态变量只能储存拥有 'static 生命周期的引用，这意味着 Rust 编译器可以自己计算出其生命周期而无需显式标注。访问不可变静态变量是安全的。
+常量与不可变静态变量可能看起来很类似，不过一个微妙的区别是静态变量中的值有一个固定的内存地址。使用这个值总是会访问相同的地址。另一方面，常量则允许在任何被用到的时候复制其数据。
+常量与静态变量的另一个区别在于静态变量可以是可变的。访问和修改可变静态变量都是 不安全 的。示例 19-10 展示了如何声明、访问和修改名为 COUNTER 的可变静态变量：
+static mut COUNTER: u32 = 0;
+fn add_to_count(inc: u32) {
+    unsafe {
+        COUNTER += inc;
+    }
+}
+fn main() {
+    add_to_count(3);
+    unsafe {
+        println!("COUNTER: {}", COUNTER);
+    }
+}
+就像常规变量一样，我们使用 mut 关键字来指定可变性。任何访问或修改 COUNTER 的代码都必须位于 unsafe 块中。这段代码可以编译并如期打印出 COUNTER: 3，因为这是单线程的。拥有多个线程访问 COUNTER 则可能导致数据竞争。
+
+拥有可以全局访问的可变数据，难以保证不存在数据竞争，这就是为何 Rust 认为可变静态变量是不安全的。任何可能的情况，请优先使用第 16 章讨论的并发技术和线程安全智能指针，这样编译器就能检测不同线程间的数据访问是否是安全的。
+
+
+
+
+实现不安全 trait
+unsafe 的另一个操作用例是实现不安全 trait。当 trait 中至少有一个方法中包含编译器无法验证的不变式（invariant）时 trait 是不安全的。可以在 trait 之前增加 unsafe 关键字将 trait 声明为 unsafe，同时 trait 的实现也必须标记为 unsafe，如示例 19-11 所示：
+unsafe trait Foo {
+    // methods go here
+}
+
+unsafe impl Foo for i32 {
+    // method implementations go here
+}
+作为一个例子，回忆第 16 章 “使用 Sync 和 Send trait 的可扩展并发” 部分中的 Sync 和 Send 标记 trait，编译器会自动为完全由 Send 和 Sync 类型组成的类型自动实现他们。如果实现了一个包含一些不是 Send 或 Sync 的类型，比如裸指针，并希望将此类型标记为 Send 或 Sync，则必须使用 unsafe。Rust 不能验证我们的类型保证可以安全的跨线程发送或在多线程间访问，所以需要我们自己进行检查并通过 unsafe 表明。
+
+
+
+访问联合体中的字段
+仅适用于 unsafe 的最后一个操作是访问 联合体 中的字段，union 和 struct 类似，但是在一个实例中同时只能使用一个声明的字段。联合体主要用于和 C 代码中的联合体交互。访问联合体的字段是不安全的，因为 Rust 无法保证当前存储在联合体实例中数据的类型。可以查看参考文档了解有关联合体的更多信息。
+
+
+
+
+
+高级trait
+
+注意这些关键字的用法： self Self type dyn
+type关键字为类型定义别名，如 type Age = i32; // 为 i32 定义别名 Age
+
+dyn关键字用于标识 trait 对象（trait object），是实现动态多态（运行时多态）的核心关键字。它的作用是告诉编译器：“这个 trait 的具体实现类型在编译时不确定，需要在运行时动态判断”。如Animal是一个trait 则    let animals: Vec<Box<dyn Animal>> = vec![
+        Box::new(Dog),
+        Box::new(Cat),
+    ]; dyn Animal让Vec知道存入的是实现了Animal trait的类型
+
+Self 和 self 是两个完全不同的概念，二者的区别体现在语义和用途上：Self 代表 “类型”，而 self 代表 “实例”。在 self: Box<Self> 中使用 Self，正是因为这里需要描述的是 “类型” 而非 “实例”。
+
+
+关联类型在 trait 定义中指定占位符类型
+
+关联类型（associated types）是一个将类型占位符与 trait 相关联的方式，这样 trait 的方法签名中就可以使用这些占位符类型。trait 的实现者会针对特定的实现在这个类型的位置指定相应的具体类型。如此可以定义一个使用多种类型的 trait，直到实现此 trait 时都无需知道这些类型具体是什么。
+一个带有关联类型的 trait 的例子是标准库提供的 Iterator trait。它有一个叫做 Item 的关联类型来替代遍历的值的类型。
+pub trait Iterator {
+    type Item;
+
+    fn next(&mut self) -> Option<Self::Item>;
+} 注意这里的Self，比如Counter实现了Iterator trait,则在Counter中，Self就是Counter的别名
+
+如：
+impl Iterator for Counter {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+这里的意思就是返回Option,里面放的是Counter::Item 也就是u32
+
+这类似于泛型。那么为什么 Iterator trait 不像示例 19-13 那样定义呢？
+pub trait Iterator<T> {
+    fn next(&mut self) -> Option<T>;
+}
+
+区别在于当如示例 19-13 那样使用泛型时，则不得不在每一个实现中标注类型。这是因为我们也可以实现为 Iterator<String> for Counter，或任何其他类型，这样就可以有多个 Counter 的 Iterator 的实现。换句话说，当 trait 有泛型参数时，可以多次实现这个 trait，每次需改变泛型参数的具体类型。接着当使用 Counter 的 next 方法时，必须提供类型标注来表明希望使用 Iterator 的哪一个实现。
+通过关联类型，则无需标注类型，因为不能多次实现这个 trait。对于示例 19-12 使用关联类型的定义，我们只能选择一次 Item 会是什么类型，因为只能有一个 impl Iterator for Counter。当调用 Counter 的 next 时不必每次指定我们需要 u32 值的迭代器。
+
+
+
+默认泛型类型参数和运算符重载
+当使用泛型类型参数时，可以为泛型指定一个默认的具体类型。如果默认类型就足够的话，这消除了为具体类型实现 trait 的需要。为泛型类型指定默认类型的语法是在声明泛型类型时使用 <PlaceholderType=ConcreteType>。
+这种情况的一个非常好的例子是用于运算符重载。运算符重载（Operator overloading）是指在特定情况下自定义运算符（比如 +）行为的操作。
+Rust 并不允许创建自定义运算符或重载任意运算符，不过 std::ops 中所列出的运算符和相应的 trait 可以通过实现运算符相关 trait 来重载。例如，示例 19-14 中展示了如何在 Point 结构体上实现 Add trait 来重载 + 运算符，这样就可以将两个 Point 实例相加了：
+use std::ops::Add;
+#[derive(Debug, PartialEq)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+impl Add for Point {
+    type Output = Point;
+
+    fn add(self, other: Point) -> Point {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+fn main() {
+    assert_eq!(Point { x: 1, y: 0 } + Point { x: 2, y: 3 },
+               Point { x: 3, y: 3 });
+}
+add 方法将两个 Point 实例的 x 值和 y 值分别相加来创建一个新的 Point。Add trait 有一个叫做 Output 的关联类型，它用来决定 add 方法的返回值类型。
+
+这里默认泛型类型位于 Add trait 中。这里是其定义：
+trait Add<RHS=Self> {
+    type Output;
+
+    fn add(self, rhs: RHS) -> Self::Output;
+}
+可以看到，泛型参数RHS默认是Self,RHS 是一个泛型类型参数（“right hand side” 的缩写),也就是默认右操作数与左操作数是同一个类型，且返回值也与Self同类型，这么做让我们得以在为point实现add trait时不需要为Add指定泛型参数
+
+但是当我们需要实现不同类型之间相加时，则必须要为Add指明泛型参数，泛型参数默认值Self只允许相同类型之间相加：
+use std::ops::Add;
+struct Millimeters(u32);
+struct Meters(u32);
+impl Add<Meters> for Millimeters {
+    type Output = Millimeters;
+
+    fn add(self, other: Meters) -> Millimeters {
+        Millimeters(self.0 + (other.0 * 1000))
+    }
+}
+这样做就能允许左操作数miliimeters与右操作数meters相加
+
+默认参数类型主要用于如下两个方面：
+扩展类型而不破坏现有代码。
+在大部分用户都不需要的特定情况进行自定义。
+
+标准库的 Add trait 就是一个第二个目的例子：大部分时候你会将两个相似的类型相加，不过它提供了自定义额外行为的能力。在 Add trait 定义中使用默认类型参数意味着大部分时候无需指定额外的参数。换句话说，一小部分实现的样板代码是不必要的，这样使用 trait 就更容易了。
+
+
+
+
+
+完全限定语法与消歧义：调用相同名称的方法
+Rust 既不能避免一个 trait 与另一个 trait 拥有相同名称的方法，也不能阻止为同一类型同时实现这两个 trait。甚至直接在类型上实现开始已经有的同名方法也是可能的！
+
+不过，当调用这些同名方法时，需要告诉 Rust 我们希望使用哪一个。考虑一下示例 19-16 中的代码，这里定义了 trait Pilot 和 Wizard 都拥有方法 fly。接着在一个本身已经实现了名为 fly 方法的类型 Human 上实现这两个 trait。每一个 fly 方法都进行了不同的操作：
+trait Pilot {
+    fn fly(&self);
+}
+trait Wizard {
+    fn fly(&self);
+}
+struct Human;
+impl Pilot for Human {
+    fn fly(&self) {
+        println!("This is your captain speaking.");
+    }
+}
+impl Wizard for Human {
+    fn fly(&self) {
+        println!("Up!");
+    }
+}
+impl Human {
+    fn fly(&self) {
+        println!("*waving arms furiously*");
+    }
+}
+
+fn main() {
+    let person = Human;
+    Pilot::fly(&person);
+    Wizard::fly(&person);
+    person.fly();
+}
+运行这段代码会打印出：
+This is your captain speaking.
+Up!
+*waving arms furiously*
+因为 fly 方法获取一个 self 参数，如果有两个 类型 都实现了同一 trait，Rust 可以根据 self 的类型计算出应该使用哪一个 trait 实现。
+
+另一个例子：
+然而，关联函数(关联函数（Associated Functions） 是定义在 impl 块中、不接收 self 参数的函数。它们与类型本身关联，而非类型的某个实例，类似于其他语言中的 “静态方法”)是 trait 的一部分，但没有 self 参数。当同一作用域的两个类型实现了同一 trait，Rust 就不能计算出我们期望的是哪一个类型，除非使用 完全限定语法（fully qualified syntax）。例如，拿示例 19-19 中的 Animal trait 来说，它有关联函数 baby_name，结构体 Dog 实现了 Animal，同时有关联函数 baby_name 直接定义于 Dog 之上：
+trait Animal {
+    fn baby_name() -> String;
+}
+struct Dog;
+impl Dog {
+    fn baby_name() -> String {
+        String::from("Spot")
+    }
+}
+impl Animal for Dog {
+    fn baby_name() -> String {
+        String::from("puppy")
+    }
+}
+fn main() {
+    println!("A baby dog is called a {}", Dog::baby_name());
+}
+
+在 main 调用了 Dog::baby_name 函数，它直接调用了定义于 Dog 之上的关联函数。这段代码会打印出：
+A baby dog is called a Spot
+
+为了消歧义并告诉 Rust 我们希望使用的是 Dog 的 Animal 实现，需要使用 完全限定语法，这是调用函数时最为明确的方式。示例 19-21 展示了如何使用完全限定语法：
+文件名: src/main.rs
+fn main() {
+    println!("A baby dog is called a {}", <Dog as Animal>::baby_name());
+}
+
+
+
+父 trait 用于在另一个 trait 中使用某 trait 的功能
+有时我们可能会需要某个 trait 使用另一个 trait 的功能。在这种情况下，需要能够依赖相关的 trait 也被实现。这个所需的 trait 是我们实现的 trait 的 父（超） trait（supertrait）。use std::fmt;
+
+trait OutlinePrint: fmt::Display {
+    fn outline_print(&self) {
+        let output = self.to_string();
+        let len = output.len();
+        println!("{}", "*".repeat(len + 4));
+        println!("*{}*", " ".repeat(len + 2));
+        println!("* {} *", output);
+        println!("*{}*", " ".repeat(len + 2));
+        println!("{}", "*".repeat(len + 4));
+    }
+}
+在outlineprint trait中用到了to_string,这就意味着要想为某个类型实现outlineprint trait,就需要为这个类型实现fmt::Display trait 
+
+比如Point类型：
+struct Point {
+    x: i32,
+    y: i32,
+}
+use std::fmt;
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+} 
+// 如果没有为point实现display,直接为point实现outlineprint则会报错
+impl OutlinePrint for Point {}
+
+
+
+
+newtype 模式用于在外部类型上实现外部 trait
+在第 10 章的 “为类型实现 trait” 部分，我们提到了孤儿规则（orphan rule），它说明只要 trait 或类型对于当前 crate 是本地的话就可以在此类型上实现该 trait。一个绕开这个限制的方法是使用 newtype 模式（newtype pattern），它涉及到在一个元组结构体（第 5 章 “使用没有命名字段的元组结构体来创建不同的类型” 部分介绍了元组结构体）中创建一个新类型。这个元组结构体带有一个字段作为希望实现 trait 的类型的简单封装。接着这个封装类型对于 crate 是本地的，这样就可以在这个封装上实现 trait。Newtype 是一个源自 Haskell 编程语言的概念。使用这个模式没有运行时性能消耗，这个封装类型在编译时就被省略了。
+
+例如，如果想要在 Vec<T> 上实现 Display，而孤儿规则阻止我们直接这么做，因为 Display trait 和 Vec<T> 都定义于我们的 crate 之外。可以创建一个包含 Vec<T> 实例的 Wrapper 结构体，接着可以如示例 19-31 那样在 Wrapper 上实现 Display 并使用 Vec<T> 的值：
+
+use std::fmt;
+struct Wrapper(Vec<String>);
+impl fmt::Display for Wrapper {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{}]", self.0.join(", "))
+    }
+}
+fn main() {
+    let w = Wrapper(vec![String::from("hello"), String::from("world")]);
+    println!("w = {}", w);
+}
+Display 的实现使用 self.0 来访问其内部的 Vec<T>，因为 Wrapper 是元组结构体而 Vec<T> 是结构体总位于索引 0 的项。接着就可以使用 Wrapper 中 Display 的功能了。
+
+此方法的缺点是，因为 Wrapper 是一个新类型，它没有定义于其值之上的方法；必须直接在 Wrapper 上实现 Vec<T> 的所有方法，这样就可以代理到self.0 上 —— 这就允许我们完全像 Vec<T> 那样对待 Wrapper。如果希望新类型拥有其内部类型的每一个方法，为封装类型实现 Deref trait（第 15 章 “通过 Deref trait 将智能指针当作常规引用处理” 部分讨论过）并返回其内部类型是一种解决方案。如果不希望封装类型拥有所有内部类型的方法 —— 比如为了限制封装类型的行为 —— 则必须只自行实现所需的方法。
+
+
+
+
+
+为了类型安全和抽象而使用 newtype 模式
+newtype 模式可以用于一些其他我们还未讨论的功能，包括静态的确保某值不被混淆，和用来表示一个值的单元。实际上示例 19-15 中已经有一个这样的例子：Millimeters 和 Meters 结构体都在 newtype 中封装了 u32 值。如果编写了一个有 Millimeters 类型参数的函数，不小心使用 Meters 或普通的 u32 值来调用该函数的程序是不能编译的。
+另一个 newtype 模式的应用在于抽象掉一些类型的实现细节：例如，封装类型可以暴露出与直接使用其内部私有类型时所不同的公有 API，以便限制其功能。
+newtype 也可以隐藏其内部的泛型类型。例如，可以提供一个封装了 HashMap<i32, String> 的 People 类型，用来储存人名以及相应的 ID。使用 People 的代码只需与提供的公有 API 交互即可，比如向 People 集合增加名字字符串的方法，这样这些代码就无需知道在内部我们将一个 i32 ID 赋予了这个名字了。newtype 模式是一种实现第 17 章 “封装隐藏了实现细节” 部分所讨论的隐藏实现细节的封装的轻量级方法。
+
+类型别名用来创建类型同义词
+type Kilometers = i32;
+let y: Kilometers = 5;
+
+类型别名也经常与 Result<T, E> 结合使用来减少重复。考虑一下标准库中的 std::io 模块。I/O 操作通常会返回一个 Result<T, E>，因为这些操作可能会失败。标准库中的 std::io::Error 结构体代表了所有可能的 I/O 错误。std::io 中大部分函数会返回 Result<T, E>，其中 E 是 std::io::Error，比如 Write trait 中的这些函数：
+use std::io::Error;
+use std::fmt;
+
+pub trait Write {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
+    fn flush(&mut self) -> Result<(), Error>;
+
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), Error>;
+    fn write_fmt(&mut self, fmt: fmt::Arguments) -> Result<(), Error>;
+}
+
+如果让 type Result<T> = std::result::Result<T, std::io::Error>;则上述代码可以简写为：
+pub trait Write {
+    fn write(&mut self, buf: &[u8]) -> Result<usize>;
+    fn flush(&mut self) -> Result<()>;
+
+    fn write_all(&mut self, buf: &[u8]) -> Result<()>;
+    fn write_fmt(&mut self, fmt: fmt::Arguments) -> Result<()>;
+}
+
+
+
+从不返回的 never type
+Rust 有一个叫做 ! 的特殊类型。在类型理论术语中，它被称为 empty type，因为它没有值。我们更倾向于称之为 never type。这个名字描述了它的作用：在函数从不返回的时候充当返回值。例如：fn bar() -> ! {
+    // --snip--
+}
+
+不过一个不能创建值的类型有什么用呢？如果你回想一下示例 2-5 中的代码，曾经有一些看起来像这样的代码，如示例 19-26 所重现的：
+let guess: u32 = match guess.trim().parse() {
+    Ok(num) => num,
+    Err(_) => continue,
+};
+在第 6 章 “match 控制流运算符” 部分，我们学习了 match 的分支必须返回相同的类型
+那么 continue 返回了什么呢？为什么示例 19-26 中会允许一个分支返回 u32 而另一个分支却以 continue 结束呢？
+
+正如你可能猜到的，continue 的值是 !。也就是说，当 Rust 要计算 guess 的类型时，它查看这两个分支。前者是 u32 值，而后者是 ! 值。因为 ! 并没有一个值，Rust 决定 guess 的类型是 u32。
+描述 ! 的行为的正式方式是 never type 可以强转为任何其他类型。允许 match 的分支以 continue 结束是因为 continue 并不真正返回一个值；相反它把控制权交回上层循环，所以在 Err 的情况，事实上并未对 guess 赋值。
+
+never type 的另一个用途是 panic!。还记得 Option<T> 上的 unwrap 函数吗？它产生一个值或 panic。这里是它的定义：
+impl<T> Option<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            Some(val) => val,
+            None => panic!("called `Option::unwrap()` on a `None` value"),
+        }
+    }
+}
+这里与示例 19-34 中的 match 发生了相同的情况：Rust 知道 val 是 T 类型，panic! 是 ! 类型，所以整个 match 表达式的结果是 T 类型。这能工作是因为 panic! 并不产生一个值；它会终止程序。对于 None 的情况，unwrap 并不返回一个值，所以这些代码有效。
+
+最后一个有着 ! 类型的表达式是 loop：
+print!("forever ");
+
+loop {
+    print!("and ever ");
+}
+这里，循环永远也不结束，所以此表达式的值是 !。但是如果引入 break 这就不为真了，因为循环在执行到 break 后就会终止。
+
+
+
+
+动态大小类型和 Sized trait
+因为 Rust 需要知道例如应该为特定类型的值分配多少空间这样的信息其类型系统的一个特定的角落可能令人迷惑：这就是 动态大小类型（dynamically sized types）的概念。这有时被称为 “DST” 或 “unsized types”，这些类型允许我们处理只有在运行时才知道大小的类型。
+
+让我们深入研究一个贯穿本书都在使用的动态大小类型的细节：str。没错，不是 &str，而是 str 本身。str 是一个 DST；直到运行时我们都不知道字符串有多长。因为直到运行时都不能知道其大小，也就意味着不能创建 str 类型的变量，也不能获取 str 类型的参数。考虑一下这些代码，他们不能工作：
+let s1: str = "Hello there!";
+let s2: str = "How's it going?";
+
+Rust 需要知道应该为特定类型的值分配多少内存，同时所有同一类型的值必须使用相同数量的内存。如果允许编写这样的代码，也就意味着这两个 str 需要占用完全相同大小的空间，不过它们有着不同的长度。这也就是为什么不可能创建一个存放动态大小类型的变量的原因。
+
+那么该怎么办呢？你已经知道了这种问题的答案：s1 和 s2 的类型是 &str 而不是 str。如果你回想第 4 章 “切片 slice 类型” 部分，slice 数据结构储存了开始位置和 slice 的长度。
+
+所以虽然 &T 是一个储存了 T 所在的内存位置的单个值，&str 则是 两个 值：str 的地址和其长度。这样，&str 就有了一个在编译时可以知道的大小：它是 usize 长度的两倍。也就是说，我们总是知道 &str 的大小，而无论其引用的字符串是多长。这里是 Rust 中动态大小类型的常规用法：他们有一些额外的元信息来储存动态信息的大小。这引出了动态大小类型的黄金规则：必须将动态大小类型的值置于某种指针之后。
+
+可以将 str 与所有类型的指针结合：比如 Box<str> 或 Rc<str>。事实上，之前我们已经见过了，不过是另一个动态大小类型：trait。每一个 trait 都是一个可以通过 trait 名称来引用的动态大小类型。在第 17 章 “为使用不同类型的值而设计的 trait 对象” 部分，我们提到了为了将 trait 用于 trait 对象，必须将他们放入指针之后，比如 &dyn Trait 或 Box<dyn Trait>（Rc<dyn Trait> 也可以）。
+
+
+为了处理 DST，Rust 有一个特定的 trait 来确定一个类型的大小是否在编译时可知：这就是 Sized trait。这个 trait 自动为编译器在编译时就知道其大小的类型实现。另外，Rust 隐式的为每一个泛型函数增加了 Sized bound。也就是说，对于如下泛型函数定义：
+fn generic<T>(t: T) {
+    // --snip--
+}
+实际上被当作如下处理：
+fn generic<T: Sized>(t: T) {
+    // --snip--
+}
+
+泛型函数默认只能用于在编译时已知大小的类型。然而可以使用如下特殊语法来放宽这个限制：
+fn generic<T: ?Sized>(t: &T) {
+    // --snip--
+}
+
+?Sized trait bound 与 Sized 相对；也就是说，它可以读作 “T 可能是也可能不是 Sized 的”。这个语法只能用于 Sized ，而不能用于其他 trait。
+
+另外注意我们将 t 参数的类型从 T 变为了 &T：因为其类型可能不是 Sized 的，所以需要将其置于某种指针之后。在这个例子中选择了引用。
+
+
+
+
+
