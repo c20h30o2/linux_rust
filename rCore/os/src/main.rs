@@ -1,49 +1,16 @@
-#![no_std]
-#![no_main]
+// os/src/main.rs
+#[no_mangle]
+pub fn rust_main() -> ! {
+    clear_bss();
+    loop {}
+}
 
-mod lang_items;
-
-use core::arch::global_asm;
-global_asm!(include_str!("entry.asm"));
-
-
-// 运行步骤：
-// 引入linker.ld文件，将原来的config.toml改为config.toml01从而将其禁用
-// 编辑新的config.toml,指定链接脚本为linker.ld 
-// cargo build --release
-// Finished release [optimized] target(s) in 0.10s
-// 我们以 release 模式生成了内核可执行文件，
-// 它的位置在 os/target/riscv64gc.../release/os 。
-// 接着我们通过 file 工具查看它的属性，
-// 可以看到它是一个运行在 64 位 RISC-V 架构计算机上的可执行文件，
-// 它是静态链接得到的。
-// file target/riscv64gc-unknown-none-elf/release/os
-// target/riscv64gc-unknown-none-elf/release/os: ELF 64-bit LSB executable, UCB RISC-V, version 1 (SYSV), statically linked, not stripped
-
-// 使用如下命令可以丢弃内核可执行文件中的元数据得到内核镜像：
-// rust-objcopy --strip-all target/riscv64gc-unknown-none-elf/release/os -O binary target/riscv64gc-unknown-none-elf/release/os.bin
-
-// 我们可以使用 stat 工具来比较内核可执行文件和内核镜像的大小：
-// stat target/riscv64gc-unknown-none-elf/release/os
-// File: target/riscv64gc-unknown-none-elf/release/os
-// Size: 1016              Blocks: 8          IO Block: 4096   regular file
-// ...
-// stat target/riscv64gc-unknown-none-elf/release/os.bin
-// File: target/riscv64gc-unknown-none-elf/release/os.bin
-// Size: 4                 Blocks: 8          IO Block: 4096   regular file
-// ...
-
-// 在 os 目录下通过以下命令启动 Qemu 并加载 RustSBI 和内核镜像：
-// qemu-system-riscv64 \
-//     -machine virt \
-//     -nographic \
-//     -bios ../bootloader/rustsbi-qemu.bin \
-//     -device loader,file=target/riscv64gc-unknown-none-elf/release/os.bin,addr=0x80200000 \
-//     -s -S
-// -s 可以使 Qemu 监听本地 TCP 端口 1234 等待 GDB 客户端连接，而 -S 可以使 Qemu 在收到 GDB 的请求后再开始运行。因此，Qemu 暂时没有任何输出。注意，如果不想通过 GDB 对于 Qemu 进行调试而是直接运行 Qemu 的话，则要删掉最后一行的 -s -S 。
-
-// 打开另一个终端，启动一个 GDB 客户端连接到 Qemu ：
-// riscv64-unknown-elf-gdb \
-//     -ex 'file target/riscv64gc-unknown-none-elf/release/os' \
-//     -ex 'set arch riscv:rv64' \
-//     -ex 'target remote localhost:1234'
+fn clear_bss() {
+    extern "C" {
+        fn sbss();
+        fn ebss();
+    }
+    (sbss as usize..ebss as usize).for_each(|a| {
+        unsafe { (a as *mut u8).write_volatile(0) }
+    });
+}
