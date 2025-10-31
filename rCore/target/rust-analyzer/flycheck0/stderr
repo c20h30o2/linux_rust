@@ -1,0 +1,11 @@
+error: could not load Cargo configuration
+
+Caused by:
+  could not parse TOML configuration in `/home/c20h30o2/rs_project/rCore/os/.cargo/config.toml`
+
+Caused by:
+  TOML parse error at line 1, column 5
+    |
+  1 |  // os/.cargo/config
+    |     ^
+  key with no value, expected `=`
