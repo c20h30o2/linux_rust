@@ -1,0 +1,71 @@
+#![no_std]
+#![no_main]
+// 我们在 main.rs 的开头加上一行 #![no_std]， 告诉 Rust 编译器不使用 Rust 标准库 std 转而使用核心库 core。
+
+mod lang_items;
+// fn main需要standard library的支持，所以仍然无法通过编译,需要在开头加上#![no_main],并删除main函数
+// fn main() {
+// println!("Hello, world!");
+// println!宏是由标准库 std 提供的，且会使用到一个名为 write 的系统调用。 无论如何，我们先将这行代码注释掉。
+// }
+//   1. main.rs 没有导入 lang_items 模块
+//     - main.rs 中使用了
+//   #![no_std]（第1行），这要求必须提供 panic_handler
+//     - 但 main.rs 中缺少 mod lang_items;
+//   声明，导致编译器找不到 panic_handler
+
+//   #![no_std] 是一个 inner attribute（内部属性），必须放在文件的第1行，在所有其他代码之前。
+//   当前 main.rs 的顺序错误：
+//   mod lang_items;  // 第1行
+//   #![no_std]       // 第2行 ❌ 错误位置
+//   正确的顺序应该是：
+//   #![no_std]       // 必须在第1行
+//   mod lang_items;  // 然后是模块声明
+//   fn main() { ... }
+
+// 注意必须要mod 引入lang_items
+//  为什么必须用 mod 引入
+//   Rust 的编译机制：
+//   1. 编译器只编译模块树中的文件
+//     - Rust 编译器从 main.rs (或 lib.rs) 开始
+//     - 只有通过 mod 声明的文件才会被编译
+//     - 即使 lang_items.rs 存在，如果没有 mod lang_items;，编译器会完全忽略它
+//   2. 模块树结构
+//   main.rs (根模块)
+//   ├─ mod lang_items;  ← 声明子模块，编译器会查找 lang_items.rs
+//   └─ fn main()
+//   3. mod 的作用
+//     - mod lang_items; 告诉编译器："请将 lang_items.rs 编译并包含到模块树中"
+//     - 这类似于 C 的 #include，但更结构化
+//   mod vs use 的区别
+//   mod lang_items;     // 声明模块，包含文件到编译中
+//   use std::io::Write; // 引入已存在模块的项到当前作用域
+//   - mod = 包含/编译文件
+//   - use = 导入/引用已编译的内容
+
+// 一些命令行代码
+// [文件格式]
+// file target/riscv64gc-unknown-none-elf/debug/os
+// [文件头信息]
+// rust-readobj -h target/riscv64gc-unknown-none-elf/debug/os
+// [反汇编导出汇编程序]
+// rust-objdump -S target/riscv64gc-unknown-none-elf/debug/os
+
+// 通过 file 工具对二进制程序 os 的分析可以看到，它好像是一个合法的 RV64 执行程序， 但 rust-readobj 工具告诉我们它的入口地址 Entry 是 0。 再通过 rust-objdump 工具把它反汇编，没有生成任何汇编代码。 可见，这个二进制程序虽然合法，但它是一个空程序，原因是缺少了编译器规定的入口函数 _start 。
+
+// 用户态最小化执行环境¶
+// 执行环境初始化
+// 首先我们要给 Rust 编译器编译器提供入口函数 _start()
+
+#[unsafe(no_mangle)]
+extern "C" fn _start() {
+    loop {};
+}
+// 此时查看反汇编
+// [反汇编导出汇编程序]
+// $ rust-objdump -S target/riscv64gc-unknown-none-elf/debug/os
+
+// 反汇编出的两条指令就是一个死循环， 这说明编译器生成的已经是一个合理的程序了。 用 qemu-riscv64 target/riscv64gc-unknown-none-elf/debug/os 命令可以执行这个程序。
+// 但是程序运行后没有任何输出，也不报错，与教学程序不同，似乎有些异常
+// 按照教学程序，应该会报出段错误才对
+// 经过验证，这里没有问题，只需要将loop注释，即可报段错误

@@ -1,0 +1,38 @@
+#![no_std]
+#![no_main]
+mod lang_items;
+const SYSCALL_EXIT: usize = 93;
+
+fn syscall(id: usize, args: [usize; 3]) -> isize {
+    let mut ret;
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            inlateout("x10") args[0] => ret,
+            in("x11") args[1],
+            in("x12") args[2],
+            in("x17") id,
+        );
+    }
+    ret
+}
+
+pub fn sys_exit(xstate: i32) -> isize {
+    syscall(SYSCALL_EXIT, [xstate as usize, 0, 0])
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn _start() {
+    sys_exit(9);
+}
+
+// main.rs 增加的内容不多，但还是有点与一般的应用程序有所不同，因为它引入了汇编和系统调用。 第二章的第二节 实现应用程序 会详细介绍上述代码的含义。 这里读者只需要知道 _start 函数调用了一个 sys_exit 函数， 向操作系统发出了退出的系统调用请求，退出码为 9 。
+// $ cargo build --target riscv64gc-unknown-none-elf
+//   Compiling os v0.1.0 (/media/chyyuu/ca8c7ba6-51b7-41fc-8430-e29e31e5328f/thecode/rust/os_kernel_lab/os)
+//     Finished dev [unoptimized + debuginfo] target(s) in 0.26s
+
+// [打印程序的返回值]
+// $ qemu-riscv64 target/riscv64gc-unknown-none-elf/debug/os; echo $?
+// 9
+
+//  
