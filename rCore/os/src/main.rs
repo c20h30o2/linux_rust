@@ -68,6 +68,17 @@ mod sbi; // SBI 调用封装,虽然main.rs中没有直接用到sbi.rs但是conso
 use core::arch::global_asm;
 global_asm!(include_str!("entry.asm")); // 包含汇编代码
 
+unsafe extern "C" {
+    fn stext();
+    fn etext();
+    fn srodata();
+    fn erodata();
+    fn sdata();
+    fn edata();
+    fn sbss();
+    fn ebss();
+}
+
 #[unsafe(no_mangle)] // 不修改函数名
 pub fn rust_main() -> ! {
     // 永不返回
@@ -79,7 +90,11 @@ pub fn rust_main() -> ! {
     error!("error");
     debug!("debug");
 
-    // info!(".text [{:#x}, {:#x})", s_text as usize, e_text as usize);
+    info!(".text [{:#x}, {:#x})", stext as usize, etext as usize);
+    debug!(".rodata [{:#x}, {:#x})", srodata as usize, erodata as usize);
+    error!(".data [{:#x}, {:#x})", sdata as usize, edata as usize);
+    info!(".bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
+
     panic!("Shutdown machine!");
     // loop {} // 主循环
 }
