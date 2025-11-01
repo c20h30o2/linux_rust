@@ -32,45 +32,92 @@ macro_rules! println {
     }
 }
 
-// TODO： 1.实现带颜色的输出 2.log等级控制，不同log等级按照不同颜色输出 3.利用彩色输出宏输出os内存空间布局 输出 .text、.data、.rodata、.bss 各段位置，输出等级为 INFO。 支持如下调用：
-// info!(".text [{:#x}, {:#x})", s_text as usize, e_text as usize);
-// debug!(".rodata [{:#x}, {:#x})", s_rodata as usize, e_rodata as usize);
-// error!(".data [{:#x}, {:#x})", s_data as usize, e_data as usize);
+// ============================================================================
+// 日志宏 - 使用 Cargo Features 实现条件编译
+// ============================================================================
+//
+// 实现方式：通过 #[cfg(feature = "log-xxx")] 在编译期控制日志输出
+//
+// 优点：
+//   - 零运行时开销（未启用的日志代码完全不存在）
+//   - 更小的二进制体积（只包含启用的日志代码）
+//   - 编译期确定，性能最优
+//
+// 使用方式：
+//   make run LOG=ERROR  - 只显示 ERROR
+//   make run LOG=WARN   - 显示 WARN + ERROR
+//   make run LOG=INFO   - 显示 INFO + WARN + ERROR
+//   make run LOG=DEBUG  - 显示 DEBUG + INFO + WARN + ERROR
+//   make run LOG=TRACE  - 显示所有日志
+//
+// 实现原理：
+//   #[cfg(feature = "log-info")] 会在编译期检查 feature 是否启用
+//   - 启用：保留代码，编译进二进制
+//   - 未启用：完全移除代码，不占用任何空间和性能
+//
+// ============================================================================
 
-// gdb调试追踪qemu从机器加电到跳转到 0x80200000 的简单过程  阅读rustsbi的起始代码
-// TODO: 4.在log信息中增加线程cpu等信息
-// TODO:5.支持以如下方式直接运行：
-// cd os
-// git checkout ch1
-// make run LOG=INFO
-
-#[macro_export]
-macro_rules! info {
-    ($fmt: literal $(, $($arg: tt)+)?) => {
-        $crate::console::print(format_args!(concat!("\x1b[34m","[INFO]",$fmt, "\n","\x1b[0m") $(, $($arg)+)?));
-    }
-}
-#[macro_export]
-macro_rules! warn {
-    ($fmt: literal $(, $($arg: tt)+)?) => {
-        $crate::console::print(format_args!(concat!("\x1b[93m","[WARN]",$fmt, "\n","\x1b[0m") $(, $($arg)+)?));
-    }
-}
+/// ERROR 级别日志 - 红色
+/// 用于严重错误，总是应该显示
 #[macro_export]
 macro_rules! error {
     ($fmt: literal $(, $($arg: tt)+)?) => {
-        $crate::console::print(format_args!(concat!("\x1b[31m","[ERROR]",$fmt, "\n","\x1b[0m") $(, $($arg)+)?));
+        #[cfg(feature = "log-error")]
+        $crate::console::print(format_args!(
+            concat!("\x1b[31m[ERROR] ", $fmt, "\x1b[0m\n")
+            $(, $($arg)+)?
+        ));
     }
 }
+
+/// WARN 级别日志 - 亮黄色
+/// 用于警告信息
+#[macro_export]
+macro_rules! warn {
+    ($fmt: literal $(, $($arg: tt)+)?) => {
+        #[cfg(feature = "log-warn")]
+        $crate::console::print(format_args!(
+            concat!("\x1b[93m[WARN ] ", $fmt, "\x1b[0m\n")
+            $(, $($arg)+)?
+        ));
+    }
+}
+
+/// INFO 级别日志 - 蓝色
+/// 用于一般信息
+#[macro_export]
+macro_rules! info {
+    ($fmt: literal $(, $($arg: tt)+)?) => {
+        #[cfg(feature = "log-info")]
+        $crate::console::print(format_args!(
+            concat!("\x1b[34m[INFO ] ", $fmt, "\x1b[0m\n")
+            $(, $($arg)+)?
+        ));
+    }
+}
+
+/// DEBUG 级别日志 - 绿色
+/// 用于调试信息
 #[macro_export]
 macro_rules! debug {
     ($fmt: literal $(, $($arg: tt)+)?) => {
-        $crate::console::print(format_args!(concat!("\x1b[32m","[DEBUG]",$fmt, "\n","\x1b[0m") $(, $($arg)+)?));
+        #[cfg(feature = "log-debug")]
+        $crate::console::print(format_args!(
+            concat!("\x1b[32m[DEBUG] ", $fmt, "\x1b[0m\n")
+            $(, $($arg)+)?
+        ));
     }
 }
+
+/// TRACE 级别日志 - 灰色
+/// 用于详细跟踪信息
 #[macro_export]
 macro_rules! trace {
     ($fmt: literal $(, $($arg: tt)+)?) => {
-        $crate::console::print(format_args!(concat!("\x1b[90m","[TRACE]",$fmt, "\n","\x1b[0m") $(, $($arg)+)?));
+        #[cfg(feature = "log-trace")]
+        $crate::console::print(format_args!(
+            concat!("\x1b[90m[TRACE] ", $fmt, "\x1b[0m\n")
+            $(, $($arg)+)?
+        ));
     }
 }

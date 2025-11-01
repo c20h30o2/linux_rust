@@ -140,3 +140,9 @@ fn clear_bss() {
 //   (gdb) continue
 
 // 现在将lang_item.rs改版调用shutdown,当有错误产生时打印错误并关机
+
+
+// 配合makefile可以这样运行
+// cd os
+// git checkout ch1
+// make run LOG=INFO

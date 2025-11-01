@@ -5,3 +5,14 @@ edition = "2024"
 
 [dependencies]
 sbi-rt = { version = "0.0.2", features = ["legacy"] }
+
+# 日志等级 features（条件编译）
+# 每个等级包含更低等级（继承关系）
+# 使用方式：cargo build --features log-info
+[features]
+default = ["log-error"]           # 默认只显示 ERROR 级别
+log-error = []                    # ERROR 级别
+log-warn = ["log-error"]          # WARN 包含 ERROR
+log-info = ["log-warn"]           # INFO 包含 WARN + ERROR
+log-debug = ["log-info"]          # DEBUG 包含 INFO + WARN + ERROR
+log-trace = ["log-debug"]         # TRACE 包含所有级别
