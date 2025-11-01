@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 // 我们在 main.rs 的开头加上一行 #![no_std]， 告诉 Rust 编译器不使用 Rust 标准库 std 转而使用核心库 core。
+// 因为标准库很可能用到了现有操作系统的系统调用等，但是为了编写操作系统，就不能使用
 
 mod lang_items;
 // fn main需要standard library的支持，所以仍然无法通过编译,需要在开头加上#![no_main],并删除main函数
